@@ -1,0 +1,17 @@
+<project>
+ <properties autorotation="0" fps="60" scaleMode="3" iosDevice="0" packageName="com.yourdomain.yourapp" logicalHeight="1024" logicalWidth="768" retinaDisplay="3" assetsOnly="0" orientation="1" architecture="0">
+  <imageScales/>
+ </properties>
+ <file source="../BhDemoShield/Images/HandFingerUp.png"/>
+ <file source="../BhDemoShield/Images/HandFingerDn.png"/>
+ <file source="../BhButton/BhButton.lua"/>
+ <file source="../BhDemoShield/BhDemoShield.lua"/>
+ <file source="../BhGesturePad/GesturePad/Fonts/Tahoma.ttf"/>
+ <file source="../BhGridLayout/BhGridLayout.lua"/>
+ <file source="../BhHelpers/BhHelpers.lua"/>
+ <file source="BhItemSlider.lua"/>
+ <file source="BhListBox.lua"/>
+ <file source="../../Misc/easing.lua"/>
+ <file source="../../Misc/gtween.lua"/>
+ <file source="main.lua"/>
+</project>
