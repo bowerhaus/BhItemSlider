@@ -25,6 +25,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SO
 BhItemSlider=Core.class(Sprite)
 
 local DEFAULT_DRAG_HYSTERESIS=10
+local DEFAULT_DRAG_OUT_OF_BOUNDS_STRETCH=0.4
 local DEFAULT_SLIDE_HYSTERESIS_FRACTION=0.25
 local DEFAULT_SLIDE_TIME=0.2
 local DEFAULT_DISABLED_ITEM_ALPHA=0.75
@@ -56,7 +57,10 @@ function BhItemSlider:init(itemWidth, itemHeight, isHorizontal)
 	self.isHorizontal=isHorizontal or false
 	self.disabledAlpha=DEFAULT_DISABLED_ITEM_ALPHA
 	self.scaleNotCurrent=DEFAULT_SCALE_NOT_CURRENT
+	self.scaleNotCurrentIsomorphic=true
+	self.isTouchOnlyOnCurrent=true
 	self.dragHysteresis=DEFAULT_DRAG_HYSTERESIS
+	self.dragOutOfBoundsStretch=DEFAULT_DRAG_OUT_OF_BOUNDS_STRETCH
 	self.slideHysteresisFraction=DEFAULT_SLIDE_HYSTERESIS_FRACTION
 	self.slideTime=DEFAULT_SLIDE_TIME
 	self.cancelContext=self
@@ -70,11 +74,18 @@ end
 function BhItemSlider:updateItemsAlphaAndScale()
 	local centerIndex=self:getCurrentItemIndex()
 	for i=1,self.contents:getNumChildren() do
-		local alpha=self.disabledAlpha
-		if i==centerIndex then	alpha=1 end
 		local child=self.contents:getChildAt(i)
-		child:setAlpha(alpha)
-		child:setScale(self:getScaleForItem(child))
+		child:setAlpha(self:getFractionalValueForItem(child, self.disabledAlpha))
+		local itemScale=self:getFractionalValueForItem(child, self.scaleNotCurrent)
+		if self.scaleNotCurrentIsomorphic then
+			child:setScale(itemScale)
+		else
+			if self.isHorizontal then
+				child:setScaleX(itemScale)
+			else
+				child:setScaleY(itemScale)
+			end
+		end
 	end
 end
 
@@ -82,14 +93,24 @@ function BhItemSlider:getIndexOfItem(item)
 	return self.contents:getChildIndex(item)
 end
 
-function BhItemSlider:getScaleForItem(item)
+function BhItemSlider:getFractionalValueForItem(item, value)
 	local currentFractionalIndex=self:getCurrentItemFractionalIndex()
 	local index=self:getIndexOfItem(item)
-	return 1-math.min(1, math.abs(index-currentFractionalIndex)*(1-self.scaleNotCurrent))
+	return 1-math.min(1, math.abs(index-currentFractionalIndex)*(1-value))
+end
+
+function BhItemSlider:notifyScrollStarted()	
+	local e=Event.new("scrollStarted")
+	self:dispatchEvent(e)
 end
 
 function BhItemSlider:notifyScroll()	
 	local e=Event.new("scrolled")
+	self:dispatchEvent(e)
+end
+
+function BhItemSlider:notifyScrollEnded()	
+	local e=Event.new("scrollEnded")
 	self:dispatchEvent(e)
 end
 
@@ -104,8 +125,7 @@ function BhItemSlider:cancelTouchesFor(sprite)
 	recursiveDispatchEvent(sprite, event)
 end
 
-function BhItemSlider:addChild(item)
-	self.contents:addChild(item)
+function BhItemSlider:updateLayout()
 	if self.isHorizontal then
 		self.layoutManager=BhGridLayout.new(self.contents, (self.itemWidth+self.itemPadding*2)*self.contents:getNumChildren(), 
 			self.itemHeight+self.itemPadding*2, self.itemWidth, self.itemHeight, self.itemPadding)
@@ -113,11 +133,30 @@ function BhItemSlider:addChild(item)
 		self.layoutManager=BhGridLayout.new(self.contents, self.itemWidth, 
 			(self.itemHeight+self.itemPadding*2)*self.contents:getNumChildren(), (self.itemWidth+self.itemPadding*2), self.itemHeight, self.itemPadding)
 	end
+end
+
+function BhItemSlider:addChild(item)
+	self.contents:addChild(item)
+	self:updateLayout()
 	self:updateItemsAlphaAndScale()
 end 
 
+function BhItemSlider:removeChild(item)
+	item:removeFromParent()
+	self:updateLayout()
+	self:updateItemsAlphaAndScale()
+end 
+
+function BhItemSlider:getNumItems()
+	return self.contents:getNumChildren()
+end
+
 function BhItemSlider:onMouseDown(event)
-	if self.contents:hitTestPoint(event.x, event.y) then
+	local hitTestObject=self.contents
+	if self.isTouchOnlyOnCurrent then
+		hitTestObject=self:getCurrentItem()
+	end
+	if hitTestObject:hitTestPoint(event.x, event.y) then
 		self.hasFocus=true
 		if self.isHorizontal then
 			self.x0=event.x
@@ -142,7 +181,8 @@ function BhItemSlider:onMouseMove(event)
 	if self.hasFocus then
 		if self.isHorizontal then
 			-- Horizontal mode
-			if self.x0 and not(self.isDragging) and math.abs(event.x-self.x0)>self.dragHysteresis then		
+			if self.x0 and not(self.isDragging) and math.abs(event.x-self.x0)>self.dragHysteresis then	
+				self:notifyScrollStarted()	
 				self.isDragging=true			
 				-- Enable the following and clicked item buttons will release as soon they are moved.		
 				-- Otherwise the release will take place when the move has completed.
@@ -150,6 +190,10 @@ function BhItemSlider:onMouseMove(event)
 			end
 			if self.isDragging then
 				local delta=event.x-self.xLast
+				local fIndex=self:getCurrentItemFractionalIndex()
+				if fIndex<=1 or fIndex>=self:getNumItems() then
+					delta=delta*self.dragOutOfBoundsStretch
+				end
 				self.contents:setX(self.contents:getX()+delta)	
 				self:updateItemsAlphaAndScale()
 				self:notifyScroll()
@@ -158,6 +202,7 @@ function BhItemSlider:onMouseMove(event)
 		else
 			-- Vertical mode
 			if self.y0 and not(self.isDragging) and math.abs(event.y-self.y0)>self.dragHysteresis then
+				self:notifyScrollStarted()
 				self.isDragging=true
 				-- Enable the following and clicked item buttons will release as soon they are moved.		
 				-- Otherwise the release will take place when the move has completed.
@@ -165,6 +210,10 @@ function BhItemSlider:onMouseMove(event)
 			end
 			if self.isDragging then
 				local delta=event.y-self.yLast
+				local fIndex=self:getCurrentItemFractionalIndex()
+				if fIndex<=1 or fIndex>=self:getNumItems() then
+					delta=delta*self.dragOutOfBoundsStretch
+				end
 				self.contents:setY(self.contents:getY()+delta)	
 				self:updateItemsAlphaAndScale()	
 				self:notifyScroll()
@@ -197,7 +246,8 @@ function BhItemSlider:onMouseUp(event)
 		self:slideToItemAt(math.min(math.max(1, newIndex), self.contents:getNumChildren()))		
 		self.isDragging=false
 		self.x0=nil
-		self.y0=nil
+		self.y0=nil		
+		self:notifyScrollEnded()
 	end
 	self.hasFocus=false
 end
@@ -220,6 +270,7 @@ function BhItemSlider:getCurrentItemFractionalIndex()
 		local origin=(nItems-1)*self.itemHeight/2
 		index=(origin-self.contents:getY())/self.itemHeight+1
 	end
+	index=math.max(1, math.min(self:getNumItems(), index))
 	return index
 end
 
@@ -253,9 +304,11 @@ function BhItemSlider:getItemScrollPosition(item)
 	end
 end
 
-function BhItemSlider:gotoItemAt(index)
+function BhItemSlider:gotoItemAt(index, isSilent)
 	self:set("itemIndex", index)
-	self:notifySelectionChanged()
+	if not(isSilent) then
+		self:notifySelectionChanged()
+	end
 end
 
 function BhItemSlider:getItemAt(i)
@@ -266,17 +319,22 @@ function BhItemSlider:getItemCount()
 	return self.contents:getNumChildren()
 end
 
+BhItemSlider._set=BhItemSlider.set
+
 function BhItemSlider:set(param, value)
 	if param=="itemIndex" then
 		self:setCurrentItemFractionalIndex(value)
 	else
-		Sprite.set(self, param, value)
+		BhItemSlider._set(self, param, value)
 	end
+	return self
 end
  
+BhItemSlider._get=BhItemSlider.get
+
 function BhItemSlider:get(param, value)
 	if param=="itemIndex" then
 		return self:getCurrentItemFractionalIndex()
 	end
-	return Sprite.get(self, param, value)
+	return BhItemSlider._get(self, param, value)
 end
