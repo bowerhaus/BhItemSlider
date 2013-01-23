@@ -55,14 +55,17 @@ function BhItemSlider:init(itemWidth, itemHeight, isHorizontal)
 	self.itemHeight=itemHeight
 	self.itemPadding=DEFAULT_ITEM_PADDING
 	self.isHorizontal=isHorizontal or false
-	self.disabledAlpha=DEFAULT_DISABLED_ITEM_ALPHA
-	self.scaleNotCurrent=DEFAULT_SCALE_NOT_CURRENT
-	self.scaleNotCurrentIsomorphic=true
-	self.isTouchOnlyOnCurrent=true
-	self.dragHysteresis=DEFAULT_DRAG_HYSTERESIS
-	self.dragOutOfBoundsStretch=DEFAULT_DRAG_OUT_OF_BOUNDS_STRETCH
-	self.slideHysteresisFraction=DEFAULT_SLIDE_HYSTERESIS_FRACTION
-	self.slideTime=DEFAULT_SLIDE_TIME
+	
+	self:setDisabledAlpha(DEFAULT_DISABLED_ITEM_ALPHA)
+	self:setScaleNotCurrent(DEFAULT_SCALE_NOT_CURRENT)
+	self:beScaleNotCurrentIsotropic()
+	self:beTouchOnlyOnCurrent(false)
+	self:setDragHysteresis(DEFAULT_DRAG_HYSTERESIS)
+	self:setDragOutOfBoundsStretch(DEFAULT_DRAG_OUT_OF_BOUNDS_STRETCH)
+	self:setSlideHysteresisFraction(DEFAULT_SLIDE_HYSTERESIS_FRACTION)
+	self:setSlideTime(DEFAULT_SLIDE_TIME)
+	self:beCaptureTouches()
+	
 	self.cancelContext=self
 	self.anchorOffset=0.5
 	
@@ -71,13 +74,54 @@ function BhItemSlider:init(itemWidth, itemHeight, isHorizontal)
     self.shield:addEventListener(Event.MOUSE_UP, self.onMouseUp, self)
 end
 
+function BhItemSlider:beScaleNotCurrentIsotropic(tf)
+	self.scaleNotCurrentIsotropic=tf or tf==nil
+end
+
+function BhItemSlider:beTouchOnlyOnCurrent(tf)
+	self.isTouchOnlyOnCurrent=tf or  tf==nil
+end
+
+function BhItemSlider:beCaptureTouches(tf)
+	self.captureTouches=tf or tf==nil
+end
+
+function BhItemSlider:setDisabledAlpha(value)
+	self.disabledAlpha=value
+end
+
+function BhItemSlider:setScaleNotCurrent(value)
+	self.scaleNotCurrent=value
+end
+
+function BhItemSlider:setDragHysteresis(value)
+	self.dragHysteresis=value
+end
+
+function BhItemSlider:setDragOutOfBoundsStretch(value)
+	self.dragOutOfBoundsStretch=value
+end
+
+function BhItemSlider:setSlideHysteresisFraction(value)
+	self.slideHysteresisFraction=value
+end
+
+function BhItemSlider:setSlideTime(value)
+	self.slideTime=value
+end
+
+function BhItemSlider:setItemPadding(value)
+	self.itemPadding=value
+	self:updateLayout()
+end
+
 function BhItemSlider:updateItemsAlphaAndScale()
 	local centerIndex=self:getCurrentItemIndex()
 	for i=1,self.contents:getNumChildren() do
 		local child=self.contents:getChildAt(i)
 		child:setAlpha(self:getFractionalValueForItem(child, self.disabledAlpha))
 		local itemScale=self:getFractionalValueForItem(child, self.scaleNotCurrent)
-		if self.scaleNotCurrentIsomorphic then
+		if self.scaleNotCurrentIsotropic then
 			child:setScale(itemScale)
 		else
 			if self.isHorizontal then
@@ -170,7 +214,7 @@ function BhItemSlider:onMouseDown(event)
 		-- the mouse down will actually be used to do a slide. Instead we wait until a certain
 		-- amount of movement has taken place before making this decision. We determine which items
 		-- are active by whether a disabledAlpha has been specified.
-		if self.disabledAlpha~=1 and not(self:getCurrentItem():hitTestPoint(event.x, event.y)) then
+		if self.captureTouches or (self.disabledAlpha~=1 and not(self:getCurrentItem():hitTestPoint(event.x, event.y))) then
 			event:stopPropagation()
 		end
 	end
@@ -319,22 +363,22 @@ function BhItemSlider:getItemCount()
 	return self.contents:getNumChildren()
 end
 
-BhItemSlider._set=BhItemSlider.set
+BhItemSlider.___set=BhItemSlider.set
 
 function BhItemSlider:set(param, value)
 	if param=="itemIndex" then
 		self:setCurrentItemFractionalIndex(value)
 	else
-		BhItemSlider._set(self, param, value)
+		BhItemSlider.___set(self, param, value)
 	end
 	return self
 end
  
-BhItemSlider._get=BhItemSlider.get
+BhItemSlider.___get=BhItemSlider.get
 
 function BhItemSlider:get(param, value)
 	if param=="itemIndex" then
 		return self:getCurrentItemFractionalIndex()
 	end
-	return BhItemSlider._get(self, param, value)
+	return BhItemSlider.___get(self, param, value)
 end

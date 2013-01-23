@@ -1,5 +1,5 @@
 <project>
- <properties autorotation="0" fps="60" scaleMode="3" iosDevice="0" packageName="com.yourdomain.yourapp" logicalHeight="1024" logicalWidth="768" retinaDisplay="3" assetsOnly="0" orientation="1" architecture="0">
+ <properties autorotation="0" fps="60" scaleMode="3" mouseToTouch="1" iosDevice="0" packageName="com.yourdomain.yourapp" logicalHeight="1024" logicalWidth="768" mouseTouchOrder="0" retinaDisplay="3" touchToMouse="1" assetsOnly="0" orientation="1" architecture="0">
   <imageScales/>
  </properties>
  <file source="BhGridLayout.lua"/>
