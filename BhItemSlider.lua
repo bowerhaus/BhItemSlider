@@ -27,7 +27,8 @@ BhItemSlider=Core.class(Sprite)
 local DEFAULT_DRAG_HYSTERESIS=10
 local DEFAULT_DRAG_OUT_OF_BOUNDS_STRETCH=0.4
 local DEFAULT_SLIDE_HYSTERESIS_FRACTION=0.25
-local DEFAULT_SLIDE_TIME=0.2
+local DEFAULT_SLIDE_TIME=0.5
+local DEFAULT_SLIDE_SNAP_TIME=0.2
 local DEFAULT_DISABLED_ITEM_ALPHA=0.75
 local DEFAULT_SCALE_NOT_CURRENT=0.75
 local DEFAULT_ITEM_PADDING=2
@@ -55,23 +56,26 @@ function BhItemSlider:init(itemWidth, itemHeight, isHorizontal)
 	self.itemHeight=itemHeight
 	self.itemPadding=DEFAULT_ITEM_PADDING
 	self.isHorizontal=isHorizontal or false
+	self.isSnapping=true
+	self.slideSnapTime=DEFAULT_SLIDE_SNAP_TIME
+	self.highlightOnTouchFunc=nil
 	
 	self:setDisabledAlpha(DEFAULT_DISABLED_ITEM_ALPHA)
 	self:setScaleNotCurrent(DEFAULT_SCALE_NOT_CURRENT)
 	self:beScaleNotCurrentIsotropic()
 	self:beTouchOnlyOnCurrent(false)
+	self:beNoMomentum()
 	self:setDragHysteresis(DEFAULT_DRAG_HYSTERESIS)
 	self:setDragOutOfBoundsStretch(DEFAULT_DRAG_OUT_OF_BOUNDS_STRETCH)
 	self:setSlideHysteresisFraction(DEFAULT_SLIDE_HYSTERESIS_FRACTION)
-	self:setSlideTime(DEFAULT_SLIDE_TIME)
 	self:beCaptureTouches()
 	
 	self.cancelContext=self
 	self.anchorOffset=0.5
 	
-	self.shield:addEventListener(Event.MOUSE_DOWN, self.onMouseDown, self)
-	self.shield:addEventListener(Event.MOUSE_MOVE, self.onMouseMove, self)
-    self.shield:addEventListener(Event.MOUSE_UP, self.onMouseUp, self)
+	self.shield:addEventListener(Event.TOUCHES_BEGIN, self.onTouchesBegin, self)
+	self.shield:addEventListener(Event.TOUCHES_MOVE, self.onTouchesMove, self)
+    self.shield:addEventListener(Event.TOUCHES_END, self.onTouchesEnd, self)
 end
 
 function BhItemSlider:beScaleNotCurrentIsotropic(tf)
@@ -84,6 +88,22 @@ end
 
 function BhItemSlider:beCaptureTouches(tf)
 	self.captureTouches=tf or tf==nil
+end
+
+function BhItemSlider:beNoMomentum()
+	self:setSlideFriction(math.huge)
+end
+
+function BhItemSlider:beStandardMomentum()
+	self:setSlideFriction(self:getItemSize()*10)
+end
+
+function BhItemSlider:beHighMomentum()
+	self:setSlideFriction(self:getItemSize()*4)
+end
+
+function BhItemSlider:setSlideFriction(value)
+	self.slideFriction=value
 end
 
 function BhItemSlider:setDisabledAlpha(value)
@@ -106,13 +126,13 @@ function BhItemSlider:setSlideHysteresisFraction(value)
 	self.slideHysteresisFraction=value
 end
 
-function BhItemSlider:setSlideTime(value)
-	self.slideTime=value
-end
-
 function BhItemSlider:setItemPadding(value)
 	self.itemPadding=value
 	self:updateLayout()
+end
+
+function BhItemSlider:setHighlightOnTouchFunc(func)
+	self.highlightOnTouchFunc=func
 end
 
 function BhItemSlider:updateItemsAlphaAndScale()
@@ -130,6 +150,14 @@ function BhItemSlider:updateItemsAlphaAndScale()
 				child:setScaleY(itemScale)
 			end
 		end
+	end
+end
+
+function BhItemSlider:getItemSize()
+	if self.isHorizontal then
+		return self.itemWidth+self.itemPadding
+	else
+		return self.itemmHeight+self.itemPadding
 	end
 end
 
@@ -195,19 +223,40 @@ function BhItemSlider:getNumItems()
 	return self.contents:getNumChildren()
 end
 
-function BhItemSlider:onMouseDown(event)
+function BhItemSlider:getHitObject(x, y)
+	for i=1, self.contents:getNumChildren() do
+		local object=self.contents:getChildAt(i)
+		if object:hitTestPoint(x, y) then 
+			return object 
+		end
+	end
+	return nil
+end
+
+function BhItemSlider:onTouchesBegin(event)
+	if self.hasFocus then 
+		return
+	end
+	
 	local hitTestObject=self.contents
 	if self.isTouchOnlyOnCurrent then
 		hitTestObject=self:getCurrentItem()
 	end
-	if hitTestObject:hitTestPoint(event.x, event.y) then
-		self.hasFocus=true
+	local x, y=event.touch.x, event.touch.y
+	if hitTestObject:hitTestPoint(x, y) then
+		self.hasFocus=event.touch.id
+
 		if self.isHorizontal then
-			self.x0=event.x
-			self.xLast=event.x
+			self.x0=x
+			self.xLast=x
 		else
-			self.y0=event.y
-			self.yLast=event.y
+			self.y0=y
+			self.yLast=y
+		end
+		
+		self.touchObject=self:getHitObject(x, y)
+		if self.highlightOnTouchFunc and self.touchObject then		
+			self.highlightOnTouchFunc(self.touchObject, true)
 		end
 		
 		-- We don't stop event propagation for the active items because we don't know that
@@ -220,80 +269,166 @@ function BhItemSlider:onMouseDown(event)
 	end
 end
 
-function BhItemSlider:onMouseMove(event)
+function BhItemSlider:onTouchesMove(event)
 	-- We are trackimng a mouse down. Has a move gone beyond our hysteresis limits
-	if self.hasFocus then
+	
+	if event.touch.id==self.hasFocus then
+		local x, y=event.touch.x, event.touch.y
+		
+		-- Check to see if we have a highlighted object that now needs de-highlighting
+		if self.touchObject and self:getHitObject(x, y) ~= self.touchObject then
+			if self.highlightOnTouchFunc then		
+				self.highlightOnTouchFunc(self.touchObject, false)
+			end
+			self.touchObject=nil
+		end
+	
 		if self.isHorizontal then
 			-- Horizontal mode
-			if self.x0 and not(self.isDragging) and math.abs(event.x-self.x0)>self.dragHysteresis then	
+			if self.x0 and not(self.isDragging) and math.abs(x-self.x0)>self.dragHysteresis then	
 				self:notifyScrollStarted()	
-				self.isDragging=true			
+				self.isDragging=true	
+				self.lastDragTime=os.timer()
+				self.lastDragVelocity=0
+				
 				-- Enable the following and clicked item buttons will release as soon they are moved.		
 				-- Otherwise the release will take place when the move has completed.
 				self:cancelTouchesFor(self.cancelContext)
 			end
 			if self.isDragging then
-				local delta=event.x-self.xLast
+				local delta=x-self.xLast
 				local fIndex=self:getCurrentItemFractionalIndex()
 				if fIndex<=1 or fIndex>=self:getNumItems() then
 					delta=delta*self.dragOutOfBoundsStretch
 				end
+
+				-- If we have a touched object and a highlight function then
+				-- ensure the object is now de-highlighted.
+				if self.highlightOnTouchFunc and self.touchObject then		
+					self.highlightOnTouchFunc(self.touchObject, false)
+				end
+				self.touchObject=nil
+				
 				self.contents:setX(self.contents:getX()+delta)	
 				self:updateItemsAlphaAndScale()
 				self:notifyScroll()
+				
+				-- Compute the finger drag velocity for momentum movement.
+				-- Make sure it doesn't get too high if the timing is out.
+				local timeNow=os.timer()
+				self.lastDragVelocity=math.min(delta/(timeNow-self.lastDragTime), application:getContentWidth()*3)
+				self.lastDragTime=timeNow
 			end
-			self.xLast=event.x
+			self.xLast=x
 		else
 			-- Vertical mode
-			if self.y0 and not(self.isDragging) and math.abs(event.y-self.y0)>self.dragHysteresis then
+			if self.y0 and not(self.isDragging) and math.abs(y-self.y0)>self.dragHysteresis then
 				self:notifyScrollStarted()
 				self.isDragging=true
+				self.lastDragTime=os.timer()
+				self.lastDragVelocity=0
+				
 				-- Enable the following and clicked item buttons will release as soon they are moved.		
 				-- Otherwise the release will take place when the move has completed.
 				self:cancelTouchesFor(self.cancelContext)
 			end
 			if self.isDragging then
-				local delta=event.y-self.yLast
+				local delta=y-self.yLast
 				local fIndex=self:getCurrentItemFractionalIndex()
 				if fIndex<=1 or fIndex>=self:getNumItems() then
 					delta=delta*self.dragOutOfBoundsStretch
 				end
+				
+				-- If we have a touched object and a highlight function then
+				-- ensure the object is now de-highlighted.
+				if self.highlightOnTouchFunc and self.touchObject then		
+					self.highlightOnTouchFunc(self.touchObject, false)
+				end
+				self.touchObject=nil
+				
 				self.contents:setY(self.contents:getY()+delta)	
 				self:updateItemsAlphaAndScale()	
 				self:notifyScroll()
+				
+				-- Compute the finger drag velocity for momentum movement.
+				-- Make sure it doesn't get too high if the timing is out.
+				local timeNow=os.timer()
+				self.lastDragVelocity=math.min(delta/(timeNow-self.lastDragTime), application:getContentHeight()*3)
+				self.lastDragTime=timeNow
 			end
-			self.yLast=event.y
+			self.yLast=y
 		end
 	end
 end
 
-function BhItemSlider:onMouseUp(event)
-	if self.isDragging then
+local function sign(x)
+	return x>0 and 1 or x<0 and -1 or 0
+end
+
+function BhItemSlider:onTouchesEnd(event)
+	if event.touch.id==self.hasFocus and self.isDragging then
+		local x, y=event.touch.x, event.touch.y
 		self:cancelTouchesFor(self.cancelContext)
 		local newIndex=self:getCurrentItemFractionalIndex()
-		local deltaFraction
-		if self.isHorizontal then
-			deltaFraction=(event.x-self.x0)/self.itemWidth
-		else
-			deltaFraction=(event.y-self.y0)/self.itemHeight
-		end
-		if math.abs(deltaFraction)>self.slideHysteresisFraction then
-			-- We have moved far enough to call it a slide
-			if deltaFraction>0 and deltaFraction<1 then
-				newIndex=math.floor(newIndex)
+		
+		if self.isSnapping then
+			-- If we are snapping then see if we have moved far
+			-- enough to call it a real slide.
+			local deltaFraction
+			if self.isHorizontal then
+				deltaFraction=(x-self.x0)/self.itemWidth
+			else
+				deltaFraction=(y-self.y0)/self.itemHeight
 			end
-			if deltaFraction<0 and deltaFraction>-1 then
-				newIndex=math.ceil(newIndex)
+			if math.abs(deltaFraction)>self.slideHysteresisFraction then
+				if deltaFraction>0 and deltaFraction<1 then
+					-- Not quite far enough so snap back to original location
+					newIndex=math.floor(newIndex)
+				end
+				if deltaFraction<0 and deltaFraction>-1 then
+					-- Not quite far enough so snap back to original location
+					newIndex=math.ceil(newIndex)
+				end
 			end
 		end
-		newIndex=math.round(newIndex)
-		self:slideToItemAt(math.min(math.max(1, newIndex), self.contents:getNumChildren()))		
+		
+		-- Do some tricky stuff to handle momentum based on the velocity of the last finger movement.
+		-- We'll approximate the average velocity as half the actual to work out the time for the
+		-- remainder of the slide.
+		--
+		local v=self.lastDragVelocity
+		local t=v/2/self.slideFriction*sign(v)
+		
+		-- Now we can work out the extra movement required (in items)
+		local requestedDelta=v/2/self:getItemSize()*t
+		local requestedIndex=newIndex-requestedDelta
+		local actualIndex=math.min(math.max(requestedIndex, 1), self.contents:getNumChildren())
+		
+		-- If we hit a limit at either end then let's reduce the amount of slide time to match
+		-- so that the movement still looks natural.
+		if requestedIndex~=newIndex then
+			local timeFraction=math.min(math.abs((actualIndex-newIndex)/(requestedIndex-newIndex)), 1)
+			t=t*timeFraction
+		end
+
+		-- Perform the slide to the actual index over the given time period
+		self:slideToItemAt(actualIndex, math.max(t, self.slideSnapTime))	
+		
 		self.isDragging=false
 		self.x0=nil
 		self.y0=nil		
 		self:notifyScrollEnded()
 	end
-	self.hasFocus=false
+	if self.touchObject then	
+		local event=Event.new("clicked")
+		event.target=self.touchObject
+		self:dispatchEvent(event)
+		if self.highlightOnTouchFunc then
+			self.highlightOnTouchFunc(self.touchObject, false)
+		end
+		self.touchObject=nil
+	end
+	self.hasFocus=nil
 end
 
 function BhItemSlider:getCurrentItem()
@@ -301,7 +436,11 @@ function BhItemSlider:getCurrentItem()
 end
 
 function BhItemSlider:getCurrentItemIndex()
-		return math.round(self:getCurrentItemFractionalIndex())
+	local index=self:getCurrentItemFractionalIndex()
+	if self.isSnapping then
+		index=math.round(index)
+	end
+	return index
 end
 
 function BhItemSlider:getCurrentItemFractionalIndex()
@@ -314,7 +453,7 @@ function BhItemSlider:getCurrentItemFractionalIndex()
 		local origin=(nItems-1)*self.itemHeight/2
 		index=(origin-self.contents:getY())/self.itemHeight+1
 	end
-	index=math.max(1, math.min(self:getNumItems(), index))
+	--index=math.max(1, math.min(self:getNumItems(), index))
 	return index
 end
 
@@ -334,10 +473,17 @@ function BhItemSlider:setCurrentItemFractionalIndex(fIndex)
 	self:notifyScroll()
 end
 
-function BhItemSlider:slideToItemAt(index)
-	local tween=GTween.new(self, self.slideTime, {itemIndex=index}, {dispatchEvents=true})
-	tween:addEventListener("complete", self.notifySelectionChanged, self)
-	
+function BhItemSlider:slideToItemAt(index, time)
+	-- We have to make sure time is not zero or the tween will never start
+	time=math.max(time or self.slideSnapTime, 0.05)
+
+	if self.isSnapping then
+		index=math.round(index)
+	end
+	index=math.min(math.max(1, index), self.contents:getNumChildren())
+	local tween=GTween.new(self, time, {itemIndex=index}, {dispatchEvents=true, ease=easing.outQuadratic})
+	tween:addEventListener("complete", self.notifySelectionChanged, self)	
+	return tween
 end
 
 function BhItemSlider:getItemScrollPosition(item)
