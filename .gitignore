@@ -1,0 +1,7 @@
+*.tmp 
+*.bin
+*.md5
+*.pch
+.tmp
+Style Tests
+Images/Art/Mocks
