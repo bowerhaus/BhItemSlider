@@ -30,7 +30,7 @@ local DEFAULT_SLIDE_HYSTERESIS_FRACTION=0.25
 local DEFAULT_SLIDE_TIME=0.5
 local DEFAULT_SLIDE_SNAP_TIME=0.2
 local DEFAULT_DISABLED_ITEM_ALPHA=0.75
-local DEFAULT_SCALE_NOT_CURRENT=0.75
+local DEFAULT_SCALE_NOT_CURRENT=1
 local DEFAULT_ITEM_PADDING=2
 
 local function recursiveDispatchEvent(sprite, event)
@@ -56,15 +56,17 @@ function BhItemSlider:init(itemWidth, itemHeight, isHorizontal)
 	self.itemHeight=itemHeight
 	self.itemPadding=DEFAULT_ITEM_PADDING
 	self.isHorizontal=isHorizontal or false
-	self.isSnapping=true
 	self.slideSnapTime=DEFAULT_SLIDE_SNAP_TIME
 	self.highlightOnTouchFunc=nil
 	
+	self:beSlideEnabled()
 	self:setDisabledAlpha(DEFAULT_DISABLED_ITEM_ALPHA)
 	self:setScaleNotCurrent(DEFAULT_SCALE_NOT_CURRENT)
+	self:setLongTapTime(nil)
 	self:beScaleNotCurrentIsotropic()
 	self:beTouchOnlyOnCurrent(false)
 	self:beNoMomentum()
+	self:beSnapping()
 	self:setDragHysteresis(DEFAULT_DRAG_HYSTERESIS)
 	self:setDragOutOfBoundsStretch(DEFAULT_DRAG_OUT_OF_BOUNDS_STRETCH)
 	self:setSlideHysteresisFraction(DEFAULT_SLIDE_HYSTERESIS_FRACTION)
@@ -76,6 +78,14 @@ function BhItemSlider:init(itemWidth, itemHeight, isHorizontal)
 	self.shield:addEventListener(Event.TOUCHES_BEGIN, self.onTouchesBegin, self)
 	self.shield:addEventListener(Event.TOUCHES_MOVE, self.onTouchesMove, self)
     self.shield:addEventListener(Event.TOUCHES_END, self.onTouchesEnd, self)
+end
+
+function BhItemSlider:beSlideEnabled(tf)
+	self.isSlideEnabled=tf or tf==nil
+end
+
+function BhItemSlider:beSnapping(tf)
+	self.isSnapping=tf or tf==nil
 end
 
 function BhItemSlider:beScaleNotCurrentIsotropic(tf)
@@ -94,12 +104,20 @@ function BhItemSlider:beNoMomentum()
 	self:setSlideFriction(math.huge)
 end
 
+function BhItemSlider:beLowMomentum()
+	self:setSlideFriction(self:getItemSize()*40)
+end
+
 function BhItemSlider:beStandardMomentum()
-	self:setSlideFriction(self:getItemSize()*10)
+	self:setSlideFriction(self:getItemSize()*20)
 end
 
 function BhItemSlider:beHighMomentum()
-	self:setSlideFriction(self:getItemSize()*4)
+	self:setSlideFriction(self:getItemSize()*10)
+end
+
+function BhItemSlider:setLongTapTime(value)
+	self.longTapTime=value
 end
 
 function BhItemSlider:setSlideFriction(value)
@@ -214,10 +232,27 @@ function BhItemSlider:addChild(item)
 end 
 
 function BhItemSlider:removeChild(item)
-	item:removeFromParent()
+	self.contents:removeChild(item)
 	self:updateLayout()
 	self:updateItemsAlphaAndScale()
 end 
+
+function BhItemSlider:removeAllChildren()
+	for i=self.contents:getNumChildren(),1,-1 do
+		self.contents:removeChildAt(i)
+	end
+	self:updateLayout()
+	self:updateItemsAlphaAndScale()	
+	self:resetScroll()
+end
+
+function BhItemSlider:resetScroll()
+	if self.isHorizontal then
+		self.contents:setX(0)
+	else
+		self.contents:setY(0)
+	end
+end
 
 function BhItemSlider:getNumItems()
 	return self.contents:getNumChildren()
@@ -231,6 +266,34 @@ function BhItemSlider:getHitObject(x, y)
 		end
 	end
 	return nil
+end
+
+function BhItemSlider:startLongTapTimer()
+	self:cancelLongTapTimer()
+	self.longTapTimer=Timer.delayedCall(self.longTapTime*1000, function() self:onTouchIsLongTap() end)	
+end
+
+function BhItemSlider:cancelLongTapTimer()
+	-- Check to see if we have a long tap timer that needs cancelling
+	if self.longTapTimer then
+		self.longTapTimer:stop()
+		self.longTapTimer=nil
+	end
+end
+
+function BhItemSlider:onTouchIsLongTap()
+	self:cancelTouchesFor(self.cancelContext)
+	if self.highlightOnTouchFunc then
+		self.highlightOnTouchFunc(self.touchObject, false)
+	end
+
+	local event=Event.new("longPress")
+	event.target=self.touchObject
+	self:dispatchEvent(event)
+	
+	self.hasFocus=nil
+	self.dragging=nil
+	self.touchObject=nil
 end
 
 function BhItemSlider:onTouchesBegin(event)
@@ -259,6 +322,11 @@ function BhItemSlider:onTouchesBegin(event)
 			self.highlightOnTouchFunc(self.touchObject, true)
 		end
 		
+		if self.longTapTime then
+			-- If we have a long tap time set then start a timer
+			self:startLongTapTimer()
+		end
+		
 		-- We don't stop event propagation for the active items because we don't know that
 		-- the mouse down will actually be used to do a slide. Instead we wait until a certain
 		-- amount of movement has taken place before making this decision. We determine which items
@@ -270,7 +338,7 @@ function BhItemSlider:onTouchesBegin(event)
 end
 
 function BhItemSlider:onTouchesMove(event)
-	-- We are trackimng a mouse down. Has a move gone beyond our hysteresis limits
+	-- We are tracking a mouse down. Has a move gone beyond our hysteresis limits
 	
 	if event.touch.id==self.hasFocus then
 		local x, y=event.touch.x, event.touch.y
@@ -281,11 +349,12 @@ function BhItemSlider:onTouchesMove(event)
 				self.highlightOnTouchFunc(self.touchObject, false)
 			end
 			self.touchObject=nil
-		end
+		end		
 	
 		if self.isHorizontal then
 			-- Horizontal mode
-			if self.x0 and not(self.isDragging) and math.abs(x-self.x0)>self.dragHysteresis then	
+			if self.x0 and not(self.isDragging) and self.isSlideEnabled and math.abs(x-self.x0)>self.dragHysteresis then	
+				self:cancelLongTapTimer()
 				self:notifyScrollStarted()	
 				self.isDragging=true	
 				self.lastDragTime=os.timer()
@@ -322,7 +391,8 @@ function BhItemSlider:onTouchesMove(event)
 			self.xLast=x
 		else
 			-- Vertical mode
-			if self.y0 and not(self.isDragging) and math.abs(y-self.y0)>self.dragHysteresis then
+			if self.y0 and not(self.isDragging) and self.isSlideEnabled and math.abs(y-self.y0)>self.dragHysteresis then
+				self:cancelLongTapTimer()
 				self:notifyScrollStarted()
 				self.isDragging=true
 				self.lastDragTime=os.timer()
@@ -366,6 +436,8 @@ local function sign(x)
 end
 
 function BhItemSlider:onTouchesEnd(event)
+	self:cancelLongTapTimer()
+
 	if event.touch.id==self.hasFocus and self.isDragging then
 		local x, y=event.touch.x, event.touch.y
 		self:cancelTouchesFor(self.cancelContext)
@@ -396,11 +468,18 @@ function BhItemSlider:onTouchesEnd(event)
 		-- We'll approximate the average velocity as half the actual to work out the time for the
 		-- remainder of the slide.
 		--
-		local v=self.lastDragVelocity
-		local t=v/2/self.slideFriction*sign(v)
+		local u=self.lastDragVelocity
+		local v, t, s=u, 0, 0
+			if u~=0 then
+			v=u/10
+			t=(u-v)/(self.slideFriction*sign(u))
+			s=(u+v)/2*t
+		end
+		
+		-- bhDebugf("BhItemSlider k=%f, u=%f, t=%f, s=%f?", self.slideFriction, u, t, s)
 		
 		-- Now we can work out the extra movement required (in items)
-		local requestedDelta=v/2/self:getItemSize()*t
+		local requestedDelta=s/self:getItemSize()
 		local requestedIndex=newIndex-requestedDelta
 		local actualIndex=math.min(math.max(requestedIndex, 1), self.contents:getNumChildren())
 		
@@ -499,6 +578,15 @@ function BhItemSlider:gotoItemAt(index, isSilent)
 	if not(isSilent) then
 		self:notifySelectionChanged()
 	end
+	return self:getItemAt(index)
+end
+
+function BhItemSlider:getItems()
+	local items={}
+	for i=1,self:getItemCount() do
+		table.insert(items, self:getItemAt(i))
+	end
+	return items
 end
 
 function BhItemSlider:getItemAt(i)
@@ -509,11 +597,37 @@ function BhItemSlider:getItemCount()
 	return self.contents:getNumChildren()
 end
 
+function BhItemSlider:getItemIndex(item)
+	return self.contents:getChildIndex(item)
+end
+
+function BhItemSlider:getItemWidth()
+	return self.itemWidth
+end
+
+function BhItemSlider:setItemWidth(width)
+	self.itemWidth=width
+	self:updateLayout()
+end
+
+function BhItemSlider:getItemHeight()
+	return self.itemHeight
+end
+
+function BhItemSlider:setItemHeight(height)
+	self.itemHeight=height
+	self:updateLayout()
+end
+
 BhItemSlider.___set=BhItemSlider.set
 
 function BhItemSlider:set(param, value)
 	if param=="itemIndex" then
 		self:setCurrentItemFractionalIndex(value)
+	elseif param=="itemWidth" then
+		self:setItemWidth(value)
+	elseif param=="itemHeight" then
+		self:setItemHeight(value)
 	else
 		BhItemSlider.___set(self, param, value)
 	end
@@ -525,6 +639,12 @@ BhItemSlider.___get=BhItemSlider.get
 function BhItemSlider:get(param, value)
 	if param=="itemIndex" then
 		return self:getCurrentItemFractionalIndex()
+	end
+	if param=="itemWidth" then
+		return self:getItemWidth()
+	end
+		if param=="itemHeight" then
+		return self:getItemHeight()
 	end
 	return BhItemSlider.___get(self, param, value)
 end
