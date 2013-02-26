@@ -4,7 +4,7 @@ BhItemSlider.lua
 A slider picker class
  
 MIT License
-Copyright (C) 2012. Andy Bower, Bowerhaus LLP
+Copyright (C) 2013. Andy Bower, Bowerhaus LLP
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software
 and associated documentation files (the "Software"), to deal in the Software without restriction,
@@ -31,7 +31,6 @@ local DEFAULT_SLIDE_TIME=0.5
 local DEFAULT_SLIDE_SNAP_TIME=0.2
 local DEFAULT_DISABLED_ITEM_ALPHA=0.75
 local DEFAULT_SCALE_NOT_CURRENT=1
-local DEFAULT_ITEM_PADDING=2
 
 local function recursiveDispatchEvent(sprite, event)
 	for i=sprite:getNumChildren(),1,-1 do
@@ -54,7 +53,6 @@ function BhItemSlider:init(itemWidth, itemHeight, isHorizontal)
 	
 	self.itemWidth=itemWidth
 	self.itemHeight=itemHeight
-	self.itemPadding=DEFAULT_ITEM_PADDING
 	self.isHorizontal=isHorizontal or false
 	self.slideSnapTime=DEFAULT_SLIDE_SNAP_TIME
 	self.highlightOnTouchFunc=nil
@@ -144,11 +142,6 @@ function BhItemSlider:setSlideHysteresisFraction(value)
 	self.slideHysteresisFraction=value
 end
 
-function BhItemSlider:setItemPadding(value)
-	self.itemPadding=value
-	self:updateLayout()
-end
-
 function BhItemSlider:setHighlightOnTouchFunc(func)
 	self.highlightOnTouchFunc=func
 end
@@ -173,9 +166,9 @@ end
 
 function BhItemSlider:getItemSize()
 	if self.isHorizontal then
-		return self.itemWidth+self.itemPadding
+		return self.itemWidth
 	else
-		return self.itemHeight+self.itemPadding
+		return self.itemHeight
 	end
 end
 
@@ -217,11 +210,11 @@ end
 
 function BhItemSlider:updateLayout()
 	if self.isHorizontal then
-		BhGridLayout.new(self.contents, (self.itemWidth+self.itemPadding*2)*self.contents:getNumChildren(), 
-			self.itemHeight+self.itemPadding*2, self.itemWidth, self.itemHeight, self.itemPadding)
+		BhGridLayout.new(self.contents, self.itemWidth*self.contents:getNumChildren(), 
+			self.itemHeight, self.itemWidth, self.itemHeight)
 	else
 		BhGridLayout.new(self.contents, self.itemWidth, 
-			(self.itemHeight+self.itemPadding*2)*self.contents:getNumChildren(), (self.itemWidth+self.itemPadding*2), self.itemHeight, self.itemPadding)
+			self.itemHeight*self.contents:getNumChildren(), self.itemWidth, self.itemHeight)
 	end
 end
 
@@ -385,7 +378,8 @@ function BhItemSlider:onTouchesMove(event)
 				-- Compute the finger drag velocity for momentum movement.
 				-- Make sure it doesn't get too high if the timing is out.
 				local timeNow=os.timer()
-				self.lastDragVelocity=math.min(delta/(timeNow-self.lastDragTime), application:getContentWidth()*3)
+				local maxAbsVelocity=application:getContentWidth()*4
+				self.lastDragVelocity=math.max(math.min(delta/(timeNow-self.lastDragTime), maxAbsVelocity), -maxAbsVelocity)
 				self.lastDragTime=timeNow
 			end
 			self.xLast=x
@@ -423,7 +417,8 @@ function BhItemSlider:onTouchesMove(event)
 				-- Compute the finger drag velocity for momentum movement.
 				-- Make sure it doesn't get too high if the timing is out.
 				local timeNow=os.timer()
-				self.lastDragVelocity=math.min(delta/(timeNow-self.lastDragTime), application:getContentHeight()*3)
+				local maxAbsVelocity=application:getContentHeight()*4
+				self.lastDragVelocity=math.max(math.min(delta/(timeNow-self.lastDragTime), maxAbsVelocity), -maxAbsVelocity)
 				self.lastDragTime=timeNow
 			end
 			self.yLast=y

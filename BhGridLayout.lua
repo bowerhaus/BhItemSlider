@@ -22,13 +22,12 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SO
 
 BhGridLayout=Core.class()
 
-function BhGridLayout:init(target, width, height, itemWidth, itemHeight, padding)
+function BhGridLayout:init(target, width, height, itemWidth, itemHeight)
 	self.target=target
 	self.width=width
 	self.height=height
-	self.padding=padding or 0
-	self.itemWidth=itemWidth+self.padding*2
-	self.itemHeight=itemHeight+self.padding*2
+	self.itemWidth=itemWidth
+	self.itemHeight=itemHeight
 	self:layout()
 end
 
@@ -39,7 +38,7 @@ local function calclayout(self)
 	-- How many rows do we actually need
 	local actRows=math.ceil(self.target:getNumChildren()/ncols)
 	local xorigin=-(ncols*self.itemWidth)/2
-	local yorigin=-(actRows/2)*self.itemHeight
+	local yorigin=-(actRows*self.itemHeight)/2
 	
 	local y=yorigin	
 	local itemIndex=1

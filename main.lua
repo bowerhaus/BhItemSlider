@@ -1,7 +1,7 @@
 local listItems={"Aardvark", "Bee", "Cat", "Dog", "Elephant", "Fox", "Giraffe", "Hen", "Iguana", "Jellyfish", "Kangaroo", "Lion", "Monkey", "Newt", "Orangutan", "Pig", "Queen Bee", "Raptor", "Sea Lion", "Turtle", "Viper", "Worker Bee", "Zebra"}
 local tahomaFont=TTFont.new("Tahoma.ttf", 20)
 
-local slider=BhItemSlider.new(80, 25, false)
+local slider=BhItemSlider.new(80, 60, false)
 
 -- This is the position of the "current" item
 slider:setPosition(100, application:getContentHeight()/2)
@@ -40,6 +40,19 @@ slider:addEventListener("scrollEnded",
 	function()
 		print("scroll ended")
 	end)
+
+slider:setDisabledAlpha(1)
+slider:setPosition(100, 0)
+
+slider:addEventListener("scrolled", 
+	function()
+		local currentIndex=slider:getCurrentItemFractionalIndex()
+		for _, eachItem in ipairs(slider:getItems()) do
+			local eachIndex=slider:getIndexOfItem(eachItem)
+			eachItem:setVisible(eachIndex>=currentIndex and eachIndex<currentIndex+5)
+		end
+
+	end)
 	
 slider:addEventListener("longPress",
 	-- Enabled with setLongTapTime()
@@ -50,6 +63,7 @@ slider:addEventListener("longPress",
 -- Allow a touched object to highlight
 local function highlight(object, tf)
 	if tf then
+		-- Alternatively try using setColorTransform()
 		object:setTextColor(0xff0000)
 	else
 		object:setTextColor(0)
@@ -59,6 +73,7 @@ slider:setHighlightOnTouchFunc(highlight)
 
 -- Populate
 for k,v in pairs(listItems) do
+	-- Here we just add text fields but we could add sprites
 	local text=TextField.new(tahomaFont, v)
 	slider:addChild(text)
 end
@@ -68,7 +83,6 @@ application:setBackgroundColor(0xBAD45C)
 slider:gotoItemAt(1)
 stage:addChild(slider)
 
--- Demo the animated slider to call
+-- Demo the animated slide to call
 Timer.delayedCall(1000, function() slider:slideToItemAt(12, 2) end)
 
-local highlightTimer
