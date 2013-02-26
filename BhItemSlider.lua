@@ -175,7 +175,7 @@ function BhItemSlider:getItemSize()
 	if self.isHorizontal then
 		return self.itemWidth+self.itemPadding
 	else
-		return self.itemmHeight+self.itemPadding
+		return self.itemHeight+self.itemPadding
 	end
 end
 
@@ -217,10 +217,10 @@ end
 
 function BhItemSlider:updateLayout()
 	if self.isHorizontal then
-		self.layoutManager=BhGridLayout.new(self.contents, (self.itemWidth+self.itemPadding*2)*self.contents:getNumChildren(), 
+		BhGridLayout.new(self.contents, (self.itemWidth+self.itemPadding*2)*self.contents:getNumChildren(), 
 			self.itemHeight+self.itemPadding*2, self.itemWidth, self.itemHeight, self.itemPadding)
 	else
-		self.layoutManager=BhGridLayout.new(self.contents, self.itemWidth, 
+		BhGridLayout.new(self.contents, self.itemWidth, 
 			(self.itemHeight+self.itemPadding*2)*self.contents:getNumChildren(), (self.itemWidth+self.itemPadding*2), self.itemHeight, self.itemPadding)
 	end
 end
@@ -331,7 +331,7 @@ function BhItemSlider:onTouchesBegin(event)
 		-- the mouse down will actually be used to do a slide. Instead we wait until a certain
 		-- amount of movement has taken place before making this decision. We determine which items
 		-- are active by whether a disabledAlpha has been specified.
-		if self.captureTouches or (self.disabledAlpha~=1 and not(self:getCurrentItem():hitTestPoint(event.x, event.y))) then
+		if self.captureTouches or (self.disabledAlpha~=1 and not(self:getCurrentItem():hitTestPoint(event.touch.x, event.touch.y))) then
 			event:stopPropagation()
 		end
 	end
@@ -465,8 +465,6 @@ function BhItemSlider:onTouchesEnd(event)
 		end
 		
 		-- Do some tricky stuff to handle momentum based on the velocity of the last finger movement.
-		-- We'll approximate the average velocity as half the actual to work out the time for the
-		-- remainder of the slide.
 		--
 		local u=self.lastDragVelocity
 		local v, t, s=u, 0, 0

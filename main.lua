@@ -1,15 +1,74 @@
-local listItems={"Apple", "Banana", "Cabbage", "Dog", "Elephant", "Fox", "Giraffe", "Hen"}
+local listItems={"Aardvark", "Bee", "Cat", "Dog", "Elephant", "Fox", "Giraffe", "Hen", "Iguana", "Jellyfish", "Kangaroo", "Lion", "Monkey", "Newt", "Orangutan", "Pig", "Queen Bee", "Raptor", "Sea Lion", "Turtle", "Viper", "Worker Bee", "Zebra"}
+local tahomaFont=TTFont.new("Tahoma.ttf", 20)
 
-local tahomaFont=TTFont.new("Tahoma.ttf", 30)
+local slider=BhItemSlider.new(80, 25, false)
 
+-- This is the position of the "current" item
+slider:setPosition(100, application:getContentHeight()/2)
 
-local slider=BhItemSlider.new(80, 40, false)
-stage:addChild(slider)
+-- These are the options, here set to their default values so you can see what's available
+slider:beSlideEnabled(true)
+slider:setDisabledAlpha(0.75)
+slider:setScaleNotCurrent(1)
+slider:setLongTapTime(nil)
+slider:beScaleNotCurrentIsotropic(true)
+slider:beTouchOnlyOnCurrent(false)
+slider:beNoMomentum()
+slider:beSnapping(true)
+slider:setDragHysteresis(10)
+slider:setDragOutOfBoundsStretch(0.4)
+slider:setSlideHysteresisFraction(0.25)
+slider:beCaptureTouches(true)
+
+-- Let's change some to non-standard values
+slider:beStandardMomentum()
+slider:setDisabledAlpha(0.75)
+slider:setLongTapTime(1)
+
+-- Add event listeners
+slider:addEventListener("selectionChanged", 
+	function()
+		print(string.format("selection changed to %s", slider:getCurrentItem():getText()))
+	end)
+	
+slider:addEventListener("scrollStarted", 
+	function()
+		print("scroll started")
+	end)
+	
+slider:addEventListener("scrollEnded", 
+	function()
+		print("scroll ended")
+	end)
+	
+slider:addEventListener("longPress",
+	-- Enabled with setLongTapTime()
+	function(event)
+		print(string.format("Long tap on item %s", event.target:getText()))
+	end)
+
+-- Allow a touched object to highlight
+local function highlight(object, tf)
+	if tf then
+		object:setTextColor(0xff0000)
+	else
+		object:setTextColor(0)
+	end
+end
+slider:setHighlightOnTouchFunc(highlight)
+
+-- Populate
 for k,v in pairs(listItems) do
 	local text=TextField.new(tahomaFont, v)
 	slider:addChild(text)
 end
 
-slider:setPosition(100, 384)
+-- Set to first item and add to stage
+application:setBackgroundColor(0xBAD45C)
 slider:gotoItemAt(1)
+stage:addChild(slider)
 
+-- Demo the animated slider to call
+Timer.delayedCall(1000, function() slider:slideToItemAt(12, 2) end)
+
+local highlightTimer
