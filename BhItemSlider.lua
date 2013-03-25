@@ -150,15 +150,18 @@ function BhItemSlider:updateItemsAlphaAndScale()
 	local centerIndex=self:getCurrentItemIndex()
 	for i=1,self.contents:getNumChildren() do
 		local child=self.contents:getChildAt(i)
-		child:setAlpha(self:getFractionalValueForItem(child, self.disabledAlpha))
-		local itemScale=self:getFractionalValueForItem(child, self.scaleNotCurrent)
-		if self.scaleNotCurrentIsotropic then
-			child:setScale(itemScale)
-		else
-			if self.isHorizontal then
-				child:setScaleX(itemScale)
+		child:setAlpha(self:getFractionalValueForItem(child, self.disabledAlpha))		
+		if self.scaleNotCurrent ~= 1 then
+			-- If a moving scale has been supplied then use it
+			local itemScale=self:getFractionalValueForItem(child, self.scaleNotCurrent)
+			if self.scaleNotCurrentIsotropic then
+				child:setScale(itemScale)
 			else
-				child:setScaleY(itemScale)
+				if self.isHorizontal then
+					child:setScaleX(itemScale)
+				else
+					child:setScaleY(itemScale)
+				end
 			end
 		end
 	end
