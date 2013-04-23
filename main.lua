@@ -19,6 +19,7 @@ slider:setDragHysteresis(10)
 slider:setDragOutOfBoundsStretch(0.4)
 slider:setSlideHysteresisFraction(0.25)
 slider:beCaptureTouches(true)
+--slider:beSlideEnabled(false)
 
 -- Let's change some to non-standard values
 slider:beStandardMomentum()
@@ -75,7 +76,7 @@ slider:setHighlightOnTouchFunc(highlight)
 for k,v in pairs(listItems) do
 	-- Here we just add text fields but we could add sprites
 	local text=TextField.new(tahomaFont, v)
-	slider:addChild(text)
+	slider:addItem(text)
 end
 
 -- Set to first item and add to stage

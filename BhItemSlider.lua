@@ -221,19 +221,25 @@ function BhItemSlider:updateLayout()
 	end
 end
 
-function BhItemSlider:addChild(item)
+function BhItemSlider:addItem(item)
 	self.contents:addChild(item)
 	self:updateLayout()
 	self:updateItemsAlphaAndScale()
 end 
 
-function BhItemSlider:removeChild(item)
+function BhItemSlider:addItemAt(item, index)
+	self.contents:addChildAt(item, index)
+	self:updateLayout()
+	self:updateItemsAlphaAndScale()
+end 
+
+function BhItemSlider:removeItem(item)
 	self.contents:removeChild(item)
 	self:updateLayout()
 	self:updateItemsAlphaAndScale()
 end 
 
-function BhItemSlider:removeAllChildren()
+function BhItemSlider:removeAllItems()
 	for i=self.contents:getNumChildren(),1,-1 do
 		self.contents:removeChildAt(i)
 	end
@@ -546,6 +552,10 @@ function BhItemSlider:setCurrentItemFractionalIndex(fIndex)
 	end
 	self:updateItemsAlphaAndScale()
 	self:notifyScroll()
+end
+
+function BhItemSlider:setCurrentItemIndex(index)
+	self:setCurrentItemFractionalIndex(math.round(index))
 end
 
 function BhItemSlider:slideToItemAt(index, time)

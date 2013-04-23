@@ -37,8 +37,8 @@ local function calclayout(self)
 	
 	-- How many rows do we actually need
 	local actRows=math.ceil(self.target:getNumChildren()/ncols)
-	local xorigin=-(ncols*self.itemWidth)/2
-	local yorigin=-(actRows*self.itemHeight)/2
+	local xorigin=0-(ncols*self.itemWidth)/2
+	local yorigin=0-(actRows*self.itemHeight)/2
 	
 	local y=yorigin	
 	local itemIndex=1
