@@ -150,7 +150,9 @@ function BhItemSlider:updateItemsAlphaAndScale()
 	local centerIndex=self:getCurrentItemIndex()
 	for i=1,self.contents:getNumChildren() do
 		local child=self.contents:getChildAt(i)
-		child:setAlpha(self:getFractionalValueForItem(child, self.disabledAlpha))		
+		if self.disabledAlpha~=1 then
+			child:setAlpha(self:getFractionalValueForItem(child, self.disabledAlpha))	
+		end
 		if self.scaleNotCurrent ~= 1 then
 			-- If a moving scale has been supplied then use it
 			local itemScale=self:getFractionalValueForItem(child, self.scaleNotCurrent)
