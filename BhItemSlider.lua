@@ -322,13 +322,15 @@ function BhItemSlider:onTouchesBegin(event)
 		end
 		
 		self.touchObject=self:getHitObject(x, y)
-		if self.highlightOnTouchFunc and self.touchObject then		
-			self.highlightOnTouchFunc(self.touchObject, true)
-		end
+		if self.touchObject then
+			if self.highlightOnTouchFunc then		
+				self.highlightOnTouchFunc(self.touchObject, true)
+			end
 		
-		if self.longTapTime then
-			-- If we have a long tap time set then start a timer
-			self:startLongTapTimer()
+			if self.longTapTime then
+				-- If we have a long tap time set then start a timer
+				self:startLongTapTimer()
+			end
 		end
 		
 		-- We don't stop event propagation for the active items because we don't know that
